@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "avito-scraper": {
+      "command": "node",
+      "args": [
+        "mcp-avito\\dist\\mcp\\server.js"
+      ],
+      "env": {
+        "CHROME_EXECUTABLE_PATH": "mcp-avito\\chrome-win64\\chrome.exe"
+      }
+    }
+  }
+}
