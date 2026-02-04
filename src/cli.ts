@@ -45,6 +45,15 @@ program
   .action(async (query: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
+      proxy: options.proxyFile
+        ? {
+            enabled: true,
+            listFile: options.proxyFile,
+            rotation: options.proxyRotation,
+            rotateEveryN: options.proxyRotateEvery,
+            rotateOnError: true,
+          }
+        : undefined,
     });
 
     try {

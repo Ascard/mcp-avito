@@ -3,6 +3,7 @@
  */
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import ProxyChain from 'proxy-chain';
 import { getRandomUserAgent } from '../utils/user-agents.js';
 import type { ProxyConfig, ScraperOptions } from './types.js';
 
@@ -10,6 +11,7 @@ export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private options: ScraperOptions;
+  private proxyServer: any = null;
 
   constructor(options: ScraperOptions = {}) {
     this.options = {
@@ -43,12 +45,64 @@ export class BrowserManager {
 
     // Add proxy if provided
     if (proxy) {
-      launchOptions.proxy = {
-        server: `${proxy.type}://${proxy.host}:${proxy.port}`,
-      };
-      if (proxy.username && proxy.password) {
-        launchOptions.proxy.username = proxy.username;
-        launchOptions.proxy.password = proxy.password;
+      // Check if SOCKS proxy with authentication
+      const isSocksWithAuth =
+        (proxy.type === 'socks4' || proxy.type === 'socks5') &&
+        proxy.username &&
+        proxy.password;
+
+      if (isSocksWithAuth) {
+        console.error(`Setting up local proxy tunnel for ${proxy.type} with auth...`);
+        console.error(`Upstream: ${proxy.type}://${proxy.host}:${proxy.port} (user: ${proxy.username})`);
+
+        const upstreamUrl = `${proxy.type}://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`;
+
+        // Create local HTTP proxy server with error handling
+        this.proxyServer = new ProxyChain.Server({
+          port: 0,
+          verbose: false, // Disable verbose to reduce noise
+          prepareRequestFunction: ({ request, username, password, hostname, port, isHttp }) => {
+            console.error(`\n[PROXY] Request: ${request.method} ${request.url}`);
+            console.error(`[PROXY] Target: ${hostname}:${port} (isHttp: ${isHttp})`);
+            return {
+              upstreamProxyUrl: upstreamUrl,
+              // Try forcing connection timeout
+              requestAuthentication: false,
+              // Don't require auth on local proxy
+              failMsg: 'Proxy connection failed',
+            };
+          },
+        });
+
+        // Add error handler
+        this.proxyServer.on('connectionClosed', ({ connectionId, stats }: any) => {
+          console.error(`[PROXY] Connection ${connectionId} closed - ${stats.srcTxBytes} bytes sent, ${stats.srcRxBytes} bytes received`);
+        });
+
+        this.proxyServer.on('requestFailed', ({ request, error }: any) => {
+          console.error(`[PROXY] Request failed: ${request?.url}`);
+          console.error(`[PROXY] Error: ${error?.message}`);
+        });
+
+        await this.proxyServer.listen();
+        const localPort = this.proxyServer.port;
+        const localProxyUrl = `http://127.0.0.1:${localPort}`;
+
+        console.error(`[PROXY] Local server running on port ${localPort}`);
+        console.error(`[PROXY] Browser will connect to ${localProxyUrl}\n`);
+
+        launchOptions.proxy = {
+          server: localProxyUrl,
+        };
+      } else {
+        // HTTP/HTTPS proxy or SOCKS without auth - use directly
+        launchOptions.proxy = {
+          server: `${proxy.type}://${proxy.host}:${proxy.port}`,
+        };
+        if (proxy.username && proxy.password) {
+          launchOptions.proxy.username = proxy.username;
+          launchOptions.proxy.password = proxy.password;
+        }
       }
     }
 
@@ -108,6 +162,15 @@ export class BrowserManager {
     if (this.browser) {
       await this.browser.close();
       this.browser = null;
+    }
+    if (this.proxyServer) {
+      console.error('Closing local proxy server...');
+      try {
+        await this.proxyServer.close(true);
+      } catch (err) {
+        console.error('Error closing proxy server:', err);
+      }
+      this.proxyServer = null;
     }
   }
 

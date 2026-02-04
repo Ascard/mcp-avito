@@ -2,6 +2,8 @@
 
 Модульный scraper для Avito с поддержкой CLI, MCP сервера и прокси.
 
+📚 **Документация:** [USAGE.md](docs/USAGE.md) | [PLAN.md](docs/PLAN.md)
+
 ## Возможности
 
 ✅ **MVP (реализовано):**
@@ -14,16 +16,20 @@
 - Ручное решение капчи (в видимом режиме)
 
 ✅ **Прокси (реализовано):**
-- Поддержка HTTP/HTTPS/SOCKS4/SOCKS5
-- Авторизация (username:password)
-- 3 стратегии ротации: sequential/random/round-robin
-- Автоматическая ротация каждые N запросов
-- Отключение неработающих прокси (round-robin)
+- Поддержка HTTP/HTTPS/SOCKS4/SOCKS5 ✅
+- Авторизация (username:password) ✅
+- SOCKS5 auth через proxy-chain ✅
+- 3 стратегии ротации: sequential/random/round-robin ✅
+- Автоматическая ротация каждые N запросов ✅
+- Отключение неработающих прокси (round-robin) ✅
+- Загрузка из файла ✅
+
+✅ **Пагинация (реализовано):**
+- Итератор для поиска по всем страницам (`search-all`) ✅
 
 🚧 **В разработке:**
-- MCP сервер для интеграции с Claude
-- Anti-captcha интеграция (anti-captcha.com)
-- Пагинация всех страниц
+- MCP сервер для интеграции с Claude Desktop
+- Anti-captcha интеграция (anti-captcha.com API)
 
 ## Установка
 
@@ -186,28 +192,24 @@ Scraper использует несколько техник для обхода
 - ✅ Случайные задержки между запросами
 - ✅ Stealth mode (скрытие webdriver)
 - ✅ Реалистичные настройки браузера (viewport, locale, timezone)
-- 🚧 Прокси (в разработке)
-- 🚧 Решение captcha (в разработке)
+- ✅ Прокси поддержка (HTTP/HTTPS/SOCKS4/SOCKS5 с авторизацией)
+- ✅ Ротация прокси (3 стратегии)
+- 🚧 Решение captcha (ручное в non-headless режиме, автоматическое - в планах)
 
 ## Roadmap
 
-### Этап 4: Прокси (базовый)
-- [ ] ProxyManager
-- [ ] Загрузка из файла
-- [ ] Поддержка HTTP/HTTPS/SOCKS4/SOCKS5
-- [ ] Авторизация
-- [ ] Sequential rotation
+См. подробный план разработки в [docs/PLAN.md](docs/PLAN.md)
 
-### Этап 5: Прокси (расширенный)
-- [ ] Random/Round-robin rotation
-- [ ] Health check
-- [ ] Статистика
+**Следующая версия (v1.1.0):**
+- [ ] MCP сервер для интеграции с Claude Desktop
+- [ ] MCP tools: avito_search, avito_get_details, avito_search_all
+- [ ] Конфигурация для Claude Desktop
 
-### Этап 6: Расширенный функционал
-- [ ] MCP сервер
-- [ ] Anti-captcha (anti-captcha.com)
-- [ ] Кэширование
-- [ ] CSV export
+**Будущие версии:**
+- [ ] Anti-captcha.com API интеграция
+- [ ] Web UI dashboard
+- [ ] Мониторинг цен и уведомления
+- [ ] CSV/Excel экспорт
 
 ## Troubleshooting
 

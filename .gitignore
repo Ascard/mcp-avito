@@ -42,3 +42,10 @@ user-data/
 # Temp files
 *.tmp
 .cache/
+
+# Downloaded Chrome
+chrome-win64/
+
+# Test files
+test-proxy.ts
+results-test.json

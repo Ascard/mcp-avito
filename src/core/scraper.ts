@@ -51,11 +51,16 @@ export class AvitoScraper {
   async initialize(): Promise<void> {
     // Load proxies if configured
     if (this.proxyManager && this.options.proxy?.listFile) {
-      await this.proxyManager.loadFromFile(this.options.proxy.listFile);
+      console.error(`Loading proxies from: ${this.options.proxy.listFile}`);
+      const count = await this.proxyManager.loadFromFile(this.options.proxy.listFile);
+      console.error(`Loaded ${count} proxies`);
     }
 
     // Get proxy for browser initialization
     const proxy = this.proxyManager?.getProxy() || undefined;
+    if (proxy) {
+      console.error(`Initializing browser with proxy: ${proxy.type}://${proxy.host}:${proxy.port}`);
+    }
     await this.browser.initialize(proxy);
   }
 
