@@ -223,4 +223,11 @@ export class AvitoScraper {
   async close(): Promise<void> {
     await this.browser.close();
   }
+
+  /**
+   * Check if scraper is initialized
+   */
+  isInitialized(): boolean {
+    return this.browser.isInitialized();
+  }
 }

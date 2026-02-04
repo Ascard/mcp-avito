@@ -27,9 +27,15 @@
 ✅ **Пагинация (реализовано):**
 - Итератор для поиска по всем страницам (`search-all`) ✅
 
+✅ **MCP Server (реализовано):**
+- MCP сервер для интеграции с Claude Desktop ✅
+- 3 инструмента: avito_search, avito_get_details, avito_search_all ✅
+- Автоматическое переиспользование браузера ✅
+- См. [docs/MCP_SETUP.md](docs/MCP_SETUP.md) ✅
+
 🚧 **В разработке:**
-- MCP сервер для интеграции с Claude Desktop
 - Anti-captcha интеграция (anti-captcha.com API)
+- Поддержка прокси в MCP сервере через переменные окружения
 
 ## Установка
 
@@ -112,6 +118,41 @@ console.log(details);
 // Закрыть браузер
 await scraper.close();
 ```
+
+### MCP Server (Claude Desktop)
+
+**Быстрая настройка:**
+
+1. Собрать проект:
+```bash
+pnpm install && pnpm build
+```
+
+2. Добавить в `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "avito-scraper": {
+      "command": "node",
+      "args": ["C:\\Temp\\mcp-avito\\dist\\mcp\\server.js"],
+      "env": {
+        "CHROME_EXECUTABLE_PATH": "C:\\Temp\\mcp-avito\\chrome-win64\\chrome.exe"
+      }
+    }
+  }
+}
+```
+
+3. Перезапустить Claude Desktop
+
+**Использование в Claude Desktop:**
+```
+Найди Samsung SSD до 15000 рублей на Avito
+```
+
+Claude автоматически вызовет `avito_search` и покажет результаты.
+
+📚 Полная инструкция: [docs/MCP_SETUP.md](docs/MCP_SETUP.md)
 
 ### Примеры
 

@@ -1,6 +1,6 @@
 {
   "name": "avito-scraper",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Modular Avito scraper with CLI, MCP server, and proxy support",
   "main": "dist/index.js",
   "type": "module",
@@ -12,6 +12,8 @@
     "watch": "tsc --watch",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
+    "mcp": "node dist/mcp/server.js",
+    "mcp:dev": "tsx src/mcp/server.ts",
     "test": "echo \"Tests coming soon\" && exit 0",
     "postinstall": "playwright install chromium"
   },
@@ -26,6 +28,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.25.3",
     "chalk": "^5.3.0",
     "cli-table3": "^0.6.3",
     "commander": "^11.1.0",
