@@ -29,6 +29,18 @@ export class BrowserManager {
       ],
     };
 
+    // Use local Chrome if available
+    const localChromePath = process.env.CHROME_EXECUTABLE_PATH || './chrome-win64/chrome.exe';
+    try {
+      const fs = await import('fs');
+      if (fs.existsSync(localChromePath)) {
+        launchOptions.executablePath = localChromePath;
+        console.error(`Using local Chrome: ${localChromePath}`);
+      }
+    } catch {
+      // If local Chrome not found, use Playwright's default
+    }
+
     // Add proxy if provided
     if (proxy) {
       launchOptions.proxy = {

@@ -56,21 +56,51 @@ export class AvitoScraper {
 
     try {
       // Navigate to search page
-      await page.goto(url, { waitUntil: 'domcontentloaded' });
+      await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+
+      // Wait for page to stabilize
+      await page.waitForTimeout(3000);
 
       // Add random delay (anti-bot)
       if (this.options.delayMs) {
         await randomSleep(this.options.delayMs[0], this.options.delayMs[1]);
       }
 
-      // Check for captcha
-      if (await this.parser.detectCaptcha(page)) {
-        throw new Error('Captcha detected') as CaptchaError;
+      // Check for captcha (with error handling)
+      try {
+        if (await this.parser.detectCaptcha(page)) {
+          // If not headless, give user time to solve captcha manually
+          if (!this.options.headless) {
+            console.error('\n⚠️  Captcha detected! Please solve it in the browser window.');
+            console.error('Waiting 60 seconds for manual solution...\n');
+            await page.waitForTimeout(60000);
+
+            // Check again after waiting
+            if (await this.parser.detectCaptcha(page)) {
+              throw new Error('Captcha still present after manual solution attempt') as CaptchaError;
+            }
+            console.error('✓ Captcha appears to be solved, continuing...\n');
+          } else {
+            throw new Error('Captcha detected') as CaptchaError;
+          }
+        }
+      } catch (error: any) {
+        if (error.message?.includes('Captcha')) {
+          throw error;
+        }
+        console.error('Warning: Could not check for captcha:', error.message);
       }
 
       // Check if blocked
-      if (await this.parser.isBlocked(page)) {
-        throw new Error('Access blocked') as ScraperError;
+      try {
+        if (await this.parser.isBlocked(page)) {
+          throw new Error('Access blocked') as ScraperError;
+        }
+      } catch (error: any) {
+        if (error.message?.includes('Access blocked')) {
+          throw error;
+        }
+        console.error('Warning: Could not check if blocked:', error.message);
       }
 
       // Wait for results
