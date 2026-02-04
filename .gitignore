@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Proxy lists (may contain sensitive data)
+proxies.txt
+*.proxies.txt
+
+# Output files
+output/
+*.json
+*.csv
+!package.json
+!tsconfig.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Browser data
+.playwright/
+user-data/
+
+# Temp files
+*.tmp
+.cache/
