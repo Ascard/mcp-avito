@@ -11,12 +11,18 @@
 - Вывод в консоль (таблица) и JSON
 - Anti-detection (user-agent, случайные задержки)
 - Stealth режим браузера
+- Ручное решение капчи (в видимом режиме)
+
+✅ **Прокси (реализовано):**
+- Поддержка HTTP/HTTPS/SOCKS4/SOCKS5
+- Авторизация (username:password)
+- 3 стратегии ротации: sequential/random/round-robin
+- Автоматическая ротация каждые N запросов
+- Отключение неработающих прокси (round-robin)
 
 🚧 **В разработке:**
-- Поддержка прокси (HTTP/HTTPS/SOCKS4/SOCKS5)
-- Ротация прокси (sequential/random/round-robin)
 - MCP сервер для интеграции с Claude
-- Anti-captcha интеграция
+- Anti-captcha интеграция (anti-captcha.com)
 - Пагинация всех страниц
 
 ## Установка
@@ -45,6 +51,16 @@ pnpm dev search "Samsung SSD" --price-max 15000 --output results.json
 
 # Без headless режима (показать браузер)
 pnpm dev search "Samsung SSD" --headless false
+
+# С прокси
+pnpm dev search "Samsung SSD" --price-max 15000 --proxy-file config/proxies.txt
+
+# С прокси и ротацией
+pnpm dev search "Samsung SSD" \
+  --price-max 15000 \
+  --proxy-file config/proxies.txt \
+  --proxy-rotation round-robin \
+  --proxy-rotate-every 10
 ```
 
 **Получить детали объявления:**

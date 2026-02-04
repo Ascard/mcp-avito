@@ -35,6 +35,13 @@ program
   .option('--sort <type>', 'Sort order (date|price_asc|price_desc)', 'default')
   .option('--output <file>', 'Save results to JSON file')
   .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--proxy-file <file>', 'Path to proxy list file')
+  .option(
+    '--proxy-rotation <strategy>',
+    'Proxy rotation strategy (sequential|random|round-robin)',
+    'sequential'
+  )
+  .option('--proxy-rotate-every <number>', 'Rotate proxy every N requests', parseInt)
   .action(async (query: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
@@ -77,9 +84,23 @@ program
   .argument('<url>', 'Item URL')
   .option('--output <file>', 'Save details to JSON file')
   .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--proxy-file <file>', 'Path to proxy list file')
+  .option(
+    '--proxy-rotation <strategy>',
+    'Proxy rotation strategy (sequential|random|round-robin)',
+    'sequential'
+  )
   .action(async (url: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
+      proxy: options.proxyFile
+        ? {
+            enabled: true,
+            listFile: options.proxyFile,
+            rotation: options.proxyRotation,
+            rotateOnError: true,
+          }
+        : undefined,
     });
 
     try {
@@ -114,9 +135,25 @@ program
   .option('--location <id>', 'Location ID', parseInt)
   .option('--sort <type>', 'Sort order (date|price_asc|price_desc)', 'default')
   .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--proxy-file <file>', 'Path to proxy list file')
+  .option(
+    '--proxy-rotation <strategy>',
+    'Proxy rotation strategy (sequential|random|round-robin)',
+    'sequential'
+  )
+  .option('--proxy-rotate-every <number>', 'Rotate proxy every N requests', parseInt)
   .action(async (query: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
+      proxy: options.proxyFile
+        ? {
+            enabled: true,
+            listFile: options.proxyFile,
+            rotation: options.proxyRotation,
+            rotateEveryN: options.proxyRotateEvery,
+            rotateOnError: true,
+          }
+        : undefined,
     });
 
     try {

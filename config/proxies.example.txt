@@ -1,0 +1,17 @@
+# Proxy list example
+# Format: protocol://[username:password@]host:port
+#
+# Supported protocols: http, https, socks4, socks5
+#
+# Without authentication:
+# http://proxy1.example.com:8080
+# socks5://proxy2.example.com:1080
+#
+# With authentication:
+# socks5://username:password@proxy3.example.com:1080
+# http://user:pass@proxy4.example.com:3128
+
+# Example proxies (replace with your own):
+# socks5://user:pass@45.93.15.6:64869
+# http://proxy.example.com:8080
+# https://secure-proxy.example.com:443

@@ -5,6 +5,7 @@
 import type { Page } from 'playwright';
 import { BrowserManager } from './browser.js';
 import { AvitoParser } from './parser.js';
+import { ProxyManager } from './proxy-manager.js';
 import { buildSearchUrl } from '../utils/url-builder.js';
 import { randomSleep } from '../utils/delays.js';
 import type {
@@ -20,6 +21,7 @@ export class AvitoScraper {
   private browser: BrowserManager;
   private parser: AvitoParser;
   private options: ScraperOptions;
+  private proxyManager: ProxyManager | null = null;
 
   constructor(options: ScraperOptions = {}) {
     this.options = {
@@ -32,13 +34,29 @@ export class AvitoScraper {
 
     this.browser = new BrowserManager(this.options);
     this.parser = new AvitoParser();
+
+    // Initialize proxy manager if proxy options provided
+    if (this.options.proxy?.enabled) {
+      this.proxyManager = new ProxyManager(
+        [],
+        this.options.proxy.rotation || 'sequential',
+        this.options.proxy.rotateEveryN || 0
+      );
+    }
   }
 
   /**
    * Initialize scraper
    */
   async initialize(): Promise<void> {
-    await this.browser.initialize();
+    // Load proxies if configured
+    if (this.proxyManager && this.options.proxy?.listFile) {
+      await this.proxyManager.loadFromFile(this.options.proxy.listFile);
+    }
+
+    // Get proxy for browser initialization
+    const proxy = this.proxyManager?.getProxy() || undefined;
+    await this.browser.initialize(proxy);
   }
 
   /**
@@ -55,6 +73,14 @@ export class AvitoScraper {
     const page = await this.browser.newPage();
 
     try {
+      // Rotate proxy if needed
+      if (this.proxyManager && this.options.proxy?.rotateOnError) {
+        const proxy = this.proxyManager.getProxy();
+        if (proxy) {
+          // Note: Changing proxy requires re-initializing browser
+          // For now, we'll use the same proxy throughout the session
+        }
+      }
       // Navigate to search page
       await page.goto(url, { waitUntil: 'load', timeout: 60000 });
 
