@@ -75,9 +75,12 @@ export class AvitoScraper {
     const url = buildSearchUrl(filters);
     console.error(`Searching: ${url}`);
 
-    const page = await this.browser.newPage();
+    // Reuse the same page/window across requests instead of opening a new
+    // browser window every time (which looks suspicious and triggers captcha).
+    // A fresh page is only created on the first request.
+    const page = await this.browser.getPage();
 
-    try {
+    {
       // Rotate proxy if needed
       if (this.proxyManager && this.options.proxy?.rotateOnError) {
         const proxy = this.proxyManager.getProxy();
@@ -86,8 +89,12 @@ export class AvitoScraper {
           // For now, we'll use the same proxy throughout the session
         }
       }
-      // Navigate to search page
-      await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+      // Navigate to search page.
+      // Note: do NOT wait for 'load' — Avito pages keep hanging requests
+      // (trackers, hcaptcha) that may never let the load event fire,
+      // which would time out page.goto even though the content is ready.
+      // Content readiness is handled by waitForResults() below.
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
       // Wait for page to stabilize
       await page.waitForTimeout(3000);
@@ -146,8 +153,6 @@ export class AvitoScraper {
       console.error(`Found ${results.length} results`);
 
       return results;
-    } finally {
-      await page.close();
     }
   }
 
@@ -161,9 +166,9 @@ export class AvitoScraper {
 
     console.error(`Fetching details: ${url}`);
 
-    const page = await this.browser.newPage();
+    const page = await this.browser.getPage();
 
-    try {
+    {
       // Navigate to item page
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
@@ -181,8 +186,6 @@ export class AvitoScraper {
       const details = await this.parser.parseItemDetails(page);
 
       return details;
-    } finally {
-      await page.close();
     }
   }
 

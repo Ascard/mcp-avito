@@ -154,9 +154,11 @@ export class AvitoParser {
   async detectCaptcha(page: Page): Promise<boolean> {
     const captchaSelectors = [
       'iframe[src*="captcha"]',
+      'iframe[src*="hcaptcha"]',
       '[class*="captcha"]',
       '#captcha',
       '[data-marker="captcha"]',
+      '[data-marker="shield"]',
     ];
 
     for (const selector of captchaSelectors) {
@@ -169,6 +171,12 @@ export class AvitoParser {
     // Check page title
     const title = await page.title();
     if (title.toLowerCase().includes('captcha')) {
+      return true;
+    }
+
+    // Avito firewall page: "Доступ ограничен: проблема с IP" + captcha
+    const bodyText = (await page.evaluate(() => document.body?.innerText || '')) || '';
+    if (bodyText.includes('Доступ ограничен') || bodyText.includes('проблема с IP')) {
       return true;
     }
 
@@ -189,6 +197,12 @@ export class AvitoParser {
       title.toLowerCase().includes('blocked') ||
       title.toLowerCase().includes('access denied')
     ) {
+      return true;
+    }
+
+    // Avito firewall: "Доступ ограничен: проблема с IP"
+    const bodyText = (await page.evaluate(() => document.body?.innerText || '')) || '';
+    if (bodyText.includes('Доступ ограничен') || bodyText.includes('проблема с IP')) {
       return true;
     }
 

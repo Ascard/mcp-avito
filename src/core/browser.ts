@@ -10,6 +10,7 @@ import type { ProxyConfig, ScraperOptions } from './types.js';
 export class BrowserManager {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
+  private page: Page | null = null;
   private options: ScraperOptions;
   private proxyServer: any = null;
 
@@ -141,20 +142,26 @@ export class BrowserManager {
     });
   }
 
-  async newPage(): Promise<Page> {
+  /**
+   * Get a reusable page. Instead of opening a new browser window/tab on every
+   * call (which looks suspicious to Avito and triggers captcha), reuse the same
+   * page across requests. The page is created once and navigated repeatedly.
+   */
+  async getPage(): Promise<Page> {
     if (!this.context) {
       throw new Error('Browser not initialized. Call initialize() first.');
     }
 
-    const page = await this.context.newPage();
+    if (!this.page || this.page.isClosed()) {
+      this.page = await this.context.newPage();
+      this.page.setDefaultTimeout(this.options.timeout || 30000);
+    }
 
-    // Set timeout
-    page.setDefaultTimeout(this.options.timeout || 30000);
-
-    return page;
+    return this.page;
   }
 
   async close(): Promise<void> {
+    this.page = null;
     if (this.context) {
       await this.context.close();
       this.context = null;
