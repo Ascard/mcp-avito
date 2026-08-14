@@ -24,7 +24,7 @@ importers:
         specifier: ^16.4.1
         version: 16.6.1
       playwright:
-        specifier: ^1.41.0
+        specifier: 1.58.1
         version: 1.58.1
       proxy-chain:
         specifier: ^2.7.1

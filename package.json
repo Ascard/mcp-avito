@@ -33,7 +33,7 @@
     "cli-table3": "^0.6.3",
     "commander": "^11.1.0",
     "dotenv": "^16.4.1",
-    "playwright": "^1.41.0",
+    "playwright": "1.58.1",
     "proxy-chain": "^2.7.1"
   },
   "devDependencies": {
