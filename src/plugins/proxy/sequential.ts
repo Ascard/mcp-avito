@@ -45,7 +45,7 @@ export class SequentialRotation implements IProxyRotationStrategy {
   markFailed(proxy: ProxyConfig): void {
     const key = this.getProxyKey(proxy);
     this.failedProxies.add(key);
-    console.error(`Proxy marked as failed: ${key}`);
+    console.error(`Прокси помечен как нерабочий: ${key}`);
   }
 
   markSuccess(proxy: ProxyConfig): void {

@@ -71,7 +71,7 @@ export class RoundRobinRotation implements IProxyRotationStrategy {
 
       if (stats.consecutiveFails >= this.maxConsecutiveFails) {
         console.error(
-          `Proxy ${key} exceeded max consecutive fails (${this.maxConsecutiveFails}), temporarily disabled`
+          `Прокси ${key} превысило максимум последовательных сбоев (${this.maxConsecutiveFails}), временно отключён`
         );
       }
     }

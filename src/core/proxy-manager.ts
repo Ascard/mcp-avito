@@ -50,14 +50,14 @@ export class ProxyManager {
           this.strategy.addProxy(proxy);
           loadedCount++;
         } else {
-          console.error(`Failed to parse proxy: ${trimmed}`);
+          console.error(`Не удалось распарсить прокси: ${trimmed}`);
         }
       }
 
-      console.error(`Loaded ${loadedCount} proxies from ${filePath}`);
+      console.error(`Загружено ${loadedCount} прокси из ${filePath}`);
       return loadedCount;
     } catch (error) {
-      console.error(`Failed to load proxies from ${filePath}:`, error);
+      console.error(`Не удалось загрузить прокси из ${filePath}:`, error);
       return 0;
     }
   }
@@ -107,7 +107,7 @@ export class ProxyManager {
 
       if (this.currentProxy) {
         const proxyStr = this.formatProxyString(this.currentProxy);
-        console.error(`Using proxy: ${proxyStr}`);
+        console.error(`Используем прокси: ${proxyStr}`);
       }
     }
 

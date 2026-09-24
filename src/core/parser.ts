@@ -70,7 +70,7 @@ export class AvitoParser {
             });
           }
         } catch (error) {
-          console.error('Error parsing item:', error);
+          console.error('Ошибка при парсинге объявления:', error);
         }
       });
 

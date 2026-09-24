@@ -57,7 +57,7 @@ program
     });
 
     try {
-      consoleOutput.displayInfo(`Searching for: "${query}"`);
+      consoleOutput.displayInfo(`Ищем: "${query}"`);
 
       const filters: SearchFilters = {
         query,
@@ -76,7 +76,7 @@ program
       // Save to file if requested
       if (options.output) {
         await jsonOutput.saveResults(results, options.output);
-        consoleOutput.displaySuccess(`Results saved to ${options.output}`);
+consoleOutput.displaySuccess(`Результаты сохранены в ${options.output}`);
       }
     } catch (error) {
       consoleOutput.displayError(error as Error);
@@ -113,7 +113,7 @@ program
     });
 
     try {
-      consoleOutput.displayInfo(`Fetching details for: ${url}`);
+      consoleOutput.displayInfo(`Получаем детали: ${url}`);
 
       const details = await scraper.getItemDetails(url);
 
@@ -123,7 +123,7 @@ program
       // Save to file if requested
       if (options.output) {
         await jsonOutput.saveDetails(details, options.output);
-        consoleOutput.displaySuccess(`Details saved to ${options.output}`);
+        consoleOutput.displaySuccess(`Детали сохранены в ${options.output}`);
       }
     } catch (error) {
       consoleOutput.displayError(error as Error);
@@ -166,7 +166,7 @@ program
     });
 
     try {
-      consoleOutput.displayInfo(`Searching all pages for: "${query}"`);
+      consoleOutput.displayInfo(`Ищем на всех страницах: "${query}"`);
 
       const filters: SearchFilters = {
         query,
@@ -183,15 +183,15 @@ program
         allResults.push(result);
         count++;
         if (count % 10 === 0) {
-          consoleOutput.displayInfo(`Collected ${count} items...`);
+          consoleOutput.displayInfo(`Собрано ${count} объявлений...`);
         }
       }
 
-      consoleOutput.displaySuccess(`Total collected: ${allResults.length} items`);
+      consoleOutput.displaySuccess(`Всего собрано: ${allResults.length} объявлений`);
 
       // Save to file
       await jsonOutput.saveResults(allResults, options.output);
-      consoleOutput.displaySuccess(`Results saved to ${options.output}`);
+      consoleOutput.displaySuccess(`Результаты сохранены в ${options.output}`);
     } catch (error) {
       consoleOutput.displayError(error as Error);
       process.exit(1);
