@@ -28,7 +28,7 @@
 - Итератор для поиска по всем страницам (`search-all`) ✅
 
 ✅ **MCP Server (реализовано):**
-- MCP сервер для интеграции с Claude Desktop ✅
+- MCP сервер для интеграции с Claude Desktop и opencode ✅
 - 3 инструмента: avito_search, avito_get_details, avito_search_all ✅
 - Автоматическое переиспользование браузера ✅
 - См. [docs/MCP_SETUP.md](docs/MCP_SETUP.md) ✅
@@ -119,7 +119,7 @@ console.log(details);
 await scraper.close();
 ```
 
-### MCP Server (Claude Desktop)
+### MCP Server (Claude Desktop / opencode)
 
 **Быстрая настройка:**
 
@@ -151,6 +151,28 @@ pnpm install && pnpm build
 ```
 
 Claude автоматически вызовет `avito_search` и покажет результаты.
+
+### MCP Server (opencode)
+
+opencode использует проектный `opencode.json` (уже в репозитории):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "avito": {
+      "type": "local",
+      "command": ["node", "dist/mcp/server.js"],
+      "enabled": true,
+      "env": {
+        "CHROME_EXECUTABLE_PATH": "C:\\_develop\\_neuro\\mcp-avito\\chrome-win64\\chrome.exe"
+      }
+    }
+  }
+}
+```
+
+Перед запуском соберите проект (`pnpm build`) и **перезапустите opencode** — конфиг читается при старте. После этого в opencode появятся инструменты `avito_search`, `avito_get_details`, `avito_search_all`.
 
 📚 Полная инструкция: [docs/MCP_SETUP.md](docs/MCP_SETUP.md)
 
@@ -195,6 +217,7 @@ avito-scraper/
 │   └── cli.ts               # CLI интерфейс
 ├── config/
 │   └── proxies.txt          # Список прокси (будущее)
+├── opencode.json            # MCP-конфигурация для opencode
 └── output/                  # Выходные файлы
 ```
 
@@ -209,6 +232,9 @@ avito-scraper/
   retries?: number;           // Повторные попытки (default: 3)
   delayMs?: [number, number]; // Задержка [min, max] (default: [1000, 3000])
   userAgent?: string;         // Custom user-agent
+  captchaTimeoutMs?: number;  // Сколько ждать ручного решения капчи (default: 120000ms)
+  captchaPollMs?: number;     // Как часто проверять решена ли капча (default: 3000ms)
+  manualCaptchaFallback?: boolean; // При капче в headless — перезапустить браузер в видимом режиме (default: true)
 }
 ```
 
@@ -235,16 +261,19 @@ Scraper использует несколько техник для обхода
 - ✅ Реалистичные настройки браузера (viewport, locale, timezone)
 - ✅ Прокси поддержка (HTTP/HTTPS/SOCKS4/SOCKS5 с авторизацией)
 - ✅ Ротация прокси (3 стратегии)
-- 🚧 Решение captcha (ручное в non-headless режиме, автоматическое - в планах)
+- ✅ Ручное решение captcha (в non-headless режиме: попап в окне браузера + автопроверка)
+- ✅ Автопереход в видимый режим при капче в headless (manualCaptchaFallback)
+- 🚧 Решение captcha автоматическое (в планах)
 
 ## Roadmap
 
 См. подробный план разработки в [docs/PLAN.md](docs/PLAN.md)
 
 **Следующая версия (v1.1.0):**
-- [ ] MCP сервер для интеграции с Claude Desktop
-- [ ] MCP tools: avito_search, avito_get_details, avito_search_all
-- [ ] Конфигурация для Claude Desktop
+- [x] MCP сервер для интеграции с Claude Desktop
+- [x] MCP tools: avito_search, avito_get_details, avito_search_all
+- [x] Конфигурация для Claude Desktop
+- [x] Интеграция с opencode (проектный opencode.json)
 
 **Будущие версии:**
 - [ ] Anti-captcha.com API интеграция
@@ -255,8 +284,10 @@ Scraper использует несколько техник для обхода
 ## Troubleshooting
 
 **Ошибка "Captcha detected":**
+- В headless режиме при включённом `manualCaptchaFallback` (по умолчанию) браузер автоматически перезапустится в видимом окне — решите капчу там
+- Запустите CLI с `--headless false` — в окне браузера появится попап с просьбой решить капчу вручную
 - Уменьшите частоту запросов
-- Используйте прокси (когда будет реализовано)
+- Используйте прокси
 - Добавьте anti-captcha solver
 
 **Пустые результаты:**

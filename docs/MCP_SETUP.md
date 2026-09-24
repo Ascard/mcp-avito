@@ -1,8 +1,8 @@
-# MCP Server Setup - Claude Desktop Integration
+# MCP Server Setup - Claude Desktop / opencode Integration
 
 ## Обзор
 
-MCP (Model Context Protocol) сервер позволяет Claude Desktop использовать Avito Scraper напрямую через встроенные инструменты.
+MCP (Model Context Protocol) сервер позволяет Claude Desktop и opencode использовать Avito Scraper напрямую через встроенные инструменты.
 
 ## Установка
 
@@ -78,6 +78,39 @@ C:\Users\<USERNAME>\AppData\Roaming\Claude\claude_desktop_config.json
 ### 4. Перезапустить Claude Desktop
 
 Полностью закройте и откройте Claude Desktop заново.
+
+---
+
+## Настройка для opencode
+
+opencode подключает MCP-сервер через проектный конфиг `opencode.json` (в корне проекта). Файл уже добавлен в репозиторий:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "avito": {
+      "type": "local",
+      "command": ["node", "dist/mcp/server.js"],
+      "enabled": true,
+      "env": {
+        "CHROME_EXECUTABLE_PATH": "C:\\_develop\\_neuro\\mcp-avito\\chrome-win64\\chrome.exe"
+      }
+    }
+  }
+}
+```
+
+**Шаги:**
+
+1. Убедитесь, что проект собран (нужен `dist/mcp/server.js`):
+   ```bash
+   pnpm install && pnpm build
+   ```
+2. Проверьте, что пути в `opencode.json` указывают на ваш проект (пути абсолютные).
+3. Перезапустите opencode — конфиг читается только при старте, хот-релоада нет.
+
+**Проверка:** после запуска в opencode появятся инструменты с префиксом `avito_` (`avito_search`, `avito_get_details`, `avito_search_all`).
 
 ---
 

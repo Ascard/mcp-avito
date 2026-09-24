@@ -19,6 +19,7 @@ output/
 *.csv
 !package.json
 !tsconfig.json
+!opencode.json
 
 # IDE
 .vscode/
@@ -49,3 +50,4 @@ chrome-win64/
 # Test files
 test-proxy.ts
 results-test.json
+test-mcp.cjs
