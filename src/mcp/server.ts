@@ -28,7 +28,10 @@ async function getScraper(): Promise<AvitoScraper> {
     });
   }
 
+  // If the browser process died (e.g. crash or was killed), reset to headless
+  // and re-initialize so subsequent calls get a fresh browser.
   if (!scraper.isInitialized()) {
+    scraper.setHeadless(true);
     await scraper.initialize();
   }
 
@@ -304,7 +307,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
-  console.error('Shutting down MCP server...');
+  console.error('Останавливаем MCP-сервер...');
   if (scraper) {
     await scraper.close();
   }
@@ -312,7 +315,7 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
-  console.error('Shutting down MCP server...');
+  console.error('Останавливаем MCP-сервер...');
   if (scraper) {
     await scraper.close();
   }
@@ -323,10 +326,10 @@ process.on('SIGTERM', async () => {
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('Avito MCP server running on stdio');
+  console.error('Avito MCP сервер работает через stdio');
 }
 
 main().catch((error) => {
-  console.error('Fatal error in MCP server:', error);
+  console.error('Фатальная ошибка MCP-сервера:', error);
   process.exit(1);
 });

@@ -83,6 +83,9 @@ export interface ScraperOptions {
   delayMs?: [number, number]; // [min, max]
   userAgent?: string;
   proxy?: ProxyOptions;
+  captchaTimeoutMs?: number; // how long to wait for manual captcha solution (headed mode)
+  captchaPollMs?: number; // how often to re-check whether captcha is solved
+  manualCaptchaFallback?: boolean; // restart browser in headed mode so the user can solve the captcha
 }
 
 // ==================== Captcha ====================

@@ -38,7 +38,7 @@ export class BrowserManager {
       const fs = await import('fs');
       if (fs.existsSync(localChromePath)) {
         launchOptions.executablePath = localChromePath;
-        console.error(`Using local Chrome: ${localChromePath}`);
+        console.error(`Используем локальный Chrome: ${localChromePath}`);
       }
     } catch {
       // If local Chrome not found, use Playwright's default
@@ -53,8 +53,8 @@ export class BrowserManager {
         proxy.password;
 
       if (isSocksWithAuth) {
-        console.error(`Setting up local proxy tunnel for ${proxy.type} with auth...`);
-        console.error(`Upstream: ${proxy.type}://${proxy.host}:${proxy.port} (user: ${proxy.username})`);
+        console.error(`Настраиваем локальный прокси-туннель для ${proxy.type} с авторизацией...`);
+        console.error(`Верхний прокси: ${proxy.type}://${proxy.host}:${proxy.port} (пользователь: ${proxy.username})`);
 
         const upstreamUrl = `${proxy.type}://${proxy.username}:${proxy.password}@${proxy.host}:${proxy.port}`;
 
@@ -63,8 +63,8 @@ export class BrowserManager {
           port: 0,
           verbose: false, // Disable verbose to reduce noise
           prepareRequestFunction: ({ request, username, password, hostname, port, isHttp }) => {
-            console.error(`\n[PROXY] Request: ${request.method} ${request.url}`);
-            console.error(`[PROXY] Target: ${hostname}:${port} (isHttp: ${isHttp})`);
+            console.error(`\n[PROXY] Запрос: ${request.method} ${request.url}`);
+            console.error(`[PROXY] Цель: ${hostname}:${port} (isHttp: ${isHttp})`);
             return {
               upstreamProxyUrl: upstreamUrl,
               // Try forcing connection timeout
@@ -77,20 +77,20 @@ export class BrowserManager {
 
         // Add error handler
         this.proxyServer.on('connectionClosed', ({ connectionId, stats }: any) => {
-          console.error(`[PROXY] Connection ${connectionId} closed - ${stats.srcTxBytes} bytes sent, ${stats.srcRxBytes} bytes received`);
+          console.error(`[PROXY] Соединение ${connectionId} закрыто — отправлено ${stats.srcTxBytes} байт, получено ${stats.srcRxBytes} байт`);
         });
 
         this.proxyServer.on('requestFailed', ({ request, error }: any) => {
-          console.error(`[PROXY] Request failed: ${request?.url}`);
-          console.error(`[PROXY] Error: ${error?.message}`);
+          console.error(`[PROXY] Запрос не удался: ${request?.url}`);
+          console.error(`[PROXY] Ошибка: ${error?.message}`);
         });
 
         await this.proxyServer.listen();
         const localPort = this.proxyServer.port;
         const localProxyUrl = `http://127.0.0.1:${localPort}`;
 
-        console.error(`[PROXY] Local server running on port ${localPort}`);
-        console.error(`[PROXY] Browser will connect to ${localProxyUrl}\n`);
+        console.error(`[PROXY] Локальный сервер запущен на порту ${localPort}`);
+        console.error(`[PROXY] Браузер подключится к ${localProxyUrl}\n`);
 
         launchOptions.proxy = {
           server: localProxyUrl,
@@ -148,16 +148,57 @@ export class BrowserManager {
    * page across requests. The page is created once and navigated repeatedly.
    */
   async getPage(): Promise<Page> {
-    if (!this.context) {
-      throw new Error('Browser not initialized. Call initialize() first.');
+    // If the browser process died or context was closed, re-initialize.
+    if (!this.browser || !this.context || !this.browser.isConnected()) {
+      await this.restartBrowser();
     }
 
     if (!this.page || this.page.isClosed()) {
-      this.page = await this.context.newPage();
-      this.page.setDefaultTimeout(this.options.timeout || 30000);
+      try {
+        this.page = await this.context!.newPage();
+        this.page.setDefaultTimeout(this.options.timeout || 30000);
+      } catch (error: any) {
+        // Context was closed even though the browser looked alive.
+        console.error('Предупреждение: пересоздаём браузер после закрытия контекста:', error.message);
+        await this.restartBrowser();
+        this.page = await this.context!.newPage();
+        this.page.setDefaultTimeout(this.options.timeout || 30000);
+      }
     }
 
     return this.page;
+  }
+
+  /**
+   * Fully shut down the current browser (if any) and start a fresh one.
+   */
+  private async restartBrowser(): Promise<void> {
+    this.page = null;
+    if (this.context) {
+      try {
+        await this.context.close();
+      } catch {
+        // ignore — already dead
+      }
+      this.context = null;
+    }
+    if (this.browser) {
+      try {
+        await this.browser.close();
+      } catch {
+        // ignore — already dead
+      }
+      this.browser = null;
+    }
+    if (this.proxyServer) {
+      try {
+        await this.proxyServer.close(true);
+      } catch {
+        // ignore
+      }
+      this.proxyServer = null;
+    }
+    await this.initialize();
   }
 
   async close(): Promise<void> {
@@ -171,17 +212,30 @@ export class BrowserManager {
       this.browser = null;
     }
     if (this.proxyServer) {
-      console.error('Closing local proxy server...');
+      console.error('Закрываем локальный прокси-сервер...');
       try {
         await this.proxyServer.close(true);
       } catch (err) {
-        console.error('Error closing proxy server:', err);
+        console.error('Ошибка при закрытии прокси-сервера:', err);
       }
       this.proxyServer = null;
     }
   }
 
   isInitialized(): boolean {
-    return this.browser !== null && this.context !== null;
+    if (this.browser === null || this.context === null) {
+      return false;
+    }
+    // Check if the browser process is still connected
+    if (!this.browser.isConnected()) {
+      return false;
+    }
+    // Verify the context is still usable by checking a property
+    try {
+      this.context.pages();
+    } catch {
+      return false;
+    }
+    return true;
   }
 }
