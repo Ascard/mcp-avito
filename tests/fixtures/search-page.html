@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>iPhone 13 — Avito поиск</title>
+  <!-- SEARCH PAGE: items carry itemprop name/url/price; location uses the
+       newer geo-text classes (data-geo-name is gone from search cards). -->
+</head>
+<body>
+  <div data-marker="item" data-item-id="4718346312">
+    <a itemprop="url" href="/kaliningrad/telefony/iphone_13_128_gb_4718346312">
+      <img itemprop="image" src="https://cdn.avito.ru/images/1.jpg">
+      <h3 itemprop="name">iPhone 13, 128 ГБ, SIM + eSIM</h3>
+    </a>
+    <meta itemprop="price" content="19990">
+    <span class="price-text-defaultS-size">19 990 ₽</span>
+    <div data-marker="item-location">Калининградская обл., Калининград</div>
+    <div data-marker="item-date">Сегодня 10:15</div>
+  </div>
+  <div data-marker="item" data-item-id="8293595758">
+    <a itemprop="url" href="/kazan/telefony/iphone_13_256gb_8293595758">
+      <img itemprop="image" src="https://cdn.avito.ru/images/3.jpg">
+      <h3 itemprop="name">iPhone 13, 256 ГБ, SIM + eSIM</h3>
+    </a>
+    <!-- no itemprop price on this card: tests the text fallback -->
+    <span class="price-text-defaultS-size">22 990 ₽</span>
+    <div class="geo-text-geocode-address-root">Казань, Вахитовский район</div>
+    <div data-marker="item-date">Сегодня 09:40</div>
+  </div>
+</body>
+</html>

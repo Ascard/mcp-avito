@@ -21,7 +21,19 @@ const jsonOutput = new JsonOutput();
 program
   .name('avito-scraper')
   .description('Scrape Avito marketplace for items')
-  .version('1.0.0');
+  .version('1.1.0');
+
+// Profile flags (added per command below): persistent browser profile is ON by
+// default — cookies survive across runs, so a solved captcha is not wasted.
+
+// Build the ScraperOptions fragment for the profile flags.
+function profileOption(options: any): { userDataDir?: string | null } {
+  if (options.profile === false) return { userDataDir: null };
+  if (typeof options.profile === 'string' && options.profile.length > 0) {
+    return { userDataDir: options.profile };
+  }
+  return {}; // scraper default: $AVITO_PROFILE_DIR or ~/.avito-scraper/profile
+}
 
 // Search command
 program
@@ -34,7 +46,13 @@ program
   .option('--page <number>', 'Page number', parseInt, 1)
   .option('--sort <type>', 'Sort order (date|price_asc|price_desc)', 'default')
   .option('--output <file>', 'Save results to JSON file')
+  .option(
+    '--profile <path>',
+    'Каталог профиля браузера (по умолчанию $AVITO_PROFILE_DIR или ~/.avito-scraper/profile)'
+  )
+  .option('--no-profile', 'Отключить персистентный профиль (чистый контекст на каждый запуск)')
   .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--captcha-timeout <ms>', 'Сколько ждать ручного решения капчи, мс (default: 120000)', parseInt)
   .option('--proxy-file <file>', 'Path to proxy list file')
   .option(
     '--proxy-rotation <strategy>',
@@ -45,6 +63,8 @@ program
   .action(async (query: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
+      ...(options.captchaTimeoutMs ? { captchaTimeoutMs: options.captchaTimeoutMs } : {}),
+      ...profileOption(options),
       proxy: options.proxyFile
         ? {
             enabled: true,
@@ -92,7 +112,13 @@ program
   .description('Get detailed information about an item')
   .argument('<url>', 'Item URL')
   .option('--output <file>', 'Save details to JSON file')
+  .option(
+    '--profile <path>',
+    'Каталог профиля браузера (по умолчанию $AVITO_PROFILE_DIR или ~/.avito-scraper/profile)'
+  )
+  .option('--no-profile', 'Отключить персистентный профиль (чистый контекст на каждый запуск)')
   .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--captcha-timeout <ms>', 'Сколько ждать ручного решения капчи, мс (default: 120000)', parseInt)
   .option('--proxy-file <file>', 'Path to proxy list file')
   .option(
     '--proxy-rotation <strategy>',
@@ -102,6 +128,8 @@ program
   .action(async (url: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
+      ...(options.captchaTimeoutMs ? { captchaTimeoutMs: options.captchaTimeoutMs } : {}),
+      ...profileOption(options),
       proxy: options.proxyFile
         ? {
             enabled: true,
@@ -139,11 +167,17 @@ program
   .description('Search all pages and save results')
   .argument('<query>', 'Search query')
   .requiredOption('--output <file>', 'Output JSON file (required)')
+  .option(
+    '--profile <path>',
+    'Каталог профиля браузера (по умолчанию $AVITO_PROFILE_DIR или ~/.avito-scraper/profile)'
+  )
+  .option('--no-profile', 'Отключить персистентный профиль (чистый контекст на каждый запуск)')
   .option('--price-min <number>', 'Minimum price', parseFloat)
   .option('--price-max <number>', 'Maximum price', parseFloat)
   .option('--location <id>', 'Location ID', parseInt)
   .option('--sort <type>', 'Sort order (date|price_asc|price_desc)', 'default')
   .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--captcha-timeout <ms>', 'Сколько ждать ручного решения капчи, мс (default: 120000)', parseInt)
   .option('--proxy-file <file>', 'Path to proxy list file')
   .option(
     '--proxy-rotation <strategy>',
@@ -154,6 +188,8 @@ program
   .action(async (query: string, options: any) => {
     const scraper = new AvitoScraper({
       headless: options.headless,
+      ...(options.captchaTimeoutMs ? { captchaTimeoutMs: options.captchaTimeoutMs } : {}),
+      ...profileOption(options),
       proxy: options.proxyFile
         ? {
             enabled: true,
@@ -192,6 +228,45 @@ program
       // Save to file
       await jsonOutput.saveResults(allResults, options.output);
       consoleOutput.displaySuccess(`Результаты сохранены в ${options.output}`);
+    } catch (error) {
+      consoleOutput.displayError(error as Error);
+      process.exit(1);
+    } finally {
+      await scraper.close();
+    }
+  });
+
+// Debug DOM command: dump selector diagnostics for a page (search or item URL).
+program
+  .command('debug-dom')
+  .description('Dump DOM diagnostics (markers, JSON-LD, price/description/location candidates) for a URL')
+  .argument('<url>', 'Avito URL (search results or item page)')
+  .option(
+    '--profile <path>',
+    'Каталог профиля браузера (по умолчанию $AVITO_PROFILE_DIR или ~/.avito-scraper/profile)'
+  )
+  .option('--no-profile', 'Отключить персистентный профиль (чистый контекст на каждый запуск)')
+  .option('--headless <boolean>', 'Run browser in headless mode', (val) => val !== 'false', true)
+  .option('--captcha-timeout <ms>', 'Сколько ждать ручного решения капчи, мс (default: 120000)', parseInt)
+  .option('--proxy-file <file>', 'Path to proxy list file')
+  .action(async (url: string, options: any) => {
+    const scraper = new AvitoScraper({
+      headless: options.headless,
+      ...(options.captchaTimeoutMs ? { captchaTimeoutMs: options.captchaTimeoutMs } : {}),
+      ...profileOption(options),
+      proxy: options.proxyFile
+        ? {
+            enabled: true,
+            listFile: options.proxyFile,
+            rotation: 'sequential',
+            rotateOnError: true,
+          }
+        : undefined,
+    });
+
+    try {
+      const diag = await scraper.debugDom(url);
+      console.log(JSON.stringify(diag, null, 2));
     } catch (error) {
       consoleOutput.displayError(error as Error);
       process.exit(1);

@@ -3,7 +3,7 @@
  */
 
 import type { Page } from 'playwright';
-import { BrowserManager } from './browser.js';
+import { BrowserManager, defaultProfileDir } from './browser.js';
 import { AvitoParser } from './parser.js';
 import { ProxyManager } from './proxy-manager.js';
 import { buildSearchUrl } from '../utils/url-builder.js';
@@ -32,6 +32,9 @@ export class AvitoScraper {
       captchaTimeoutMs: 120000,
       captchaPollMs: 3000,
       manualCaptchaFallback: true,
+      // Persistent profile by default: solved captchas / session cookies
+      // survive across runs. Pass userDataDir: null to opt out.
+      userDataDir: defaultProfileDir(),
       ...options,
     };
 
@@ -65,6 +68,51 @@ export class AvitoScraper {
       console.error(`Инициализируем браузер с прокси: ${proxy.type}://${proxy.host}:${proxy.port}`);
     }
     await this.browser.initialize(proxy);
+  }
+
+  /**
+   * Make sure the page is a real Avito page, not a captcha/firewall stub.
+   * The "Доступ ограничен: проблема с IP" firewall sometimes lands a few
+   * seconds after the DOM is ready, so checks are repeated before the page
+   * is trusted. The firewall carries its own captcha — solving it in the
+   * popup lifts the ban, and the clearance cookie persists in the profile.
+   *
+   * @returns the page once it looks accessible (or best effort after retries).
+   * @throws CaptchaError when a captcha is present but not solved in time.
+   */
+  private async ensureAccessible(page: Page, url: string): Promise<Page> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let captcha = false;
+      let blocked = false;
+      try {
+        captcha = await this.parser.detectCaptcha(page);
+        blocked = !captcha && (await this.parser.isBlocked(page));
+      } catch (error: any) {
+        console.error('Предупреждение: не удалось проверить страницу:', error.message);
+        if (attempt < 2) {
+          await page.waitForTimeout(2000).catch(() => {});
+          continue;
+        }
+        break;
+      }
+
+      if (!captcha && !blocked) {
+        return page;
+      }
+      page = await this.resolveCaptcha(page, url);
+
+      // After a solved captcha Avito often lands on a neutral page (home /
+      // region picker) instead of the target URL — go back and re-verify.
+      if (attempt < 2) {
+        try {
+          await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+          await page.waitForTimeout(2500);
+        } catch {
+          // Navigation race — the next attempt's checks will tell.
+        }
+      }
+    }
+    return page;
   }
 
   /**
@@ -107,31 +155,9 @@ export class AvitoScraper {
         await randomSleep(this.options.delayMs[0], this.options.delayMs[1]);
       }
 
-      // Check for captcha (with error handling).
-      // If captcha is detected in headless mode and manualCaptchaFallback is
-      // enabled, restart the browser in headed mode so the user can solve it.
-      try {
-        if (await this.parser.detectCaptcha(page)) {
-          page = await this.resolveCaptcha(page, url);
-        }
-      } catch (error: any) {
-        if (error.message?.includes('Captcha')) {
-          throw error;
-        }
-        console.error('Предупреждение: не удалось проверить капчу:', error.message);
-      }
-
-      // Check if blocked
-      try {
-        if (await this.parser.isBlocked(page)) {
-          throw new Error('Access blocked') as ScraperError;
-        }
-      } catch (error: any) {
-        if (error.message?.includes('Access blocked')) {
-          throw error;
-        }
-        console.error('Предупреждение: не удалось проверить блокировку:', error.message);
-      }
+      // Captcha / IP-ban firewall ("Доступ ограничен") — show the popup for a
+      // manual solve if needed; the clearance cookie persists in the profile.
+      page = await this.ensureAccessible(page, url);
 
       // Wait for results
       const hasResults = await this.parser.waitForResults(page);
@@ -206,11 +232,20 @@ export class AvitoScraper {
         break;
       }
       const remaining = Math.max(0, Math.round((captchaTimeout - (Date.now() - startedAt)) / 1000));
-      await this.updateCaptchaPopup(page, remaining);
+      try {
+        await this.updateCaptchaPopup(page, remaining);
+      } catch {
+        // Window was closed by the user while waiting — nothing to update.
+        break;
+      }
       await page.waitForTimeout(pollMs);
     }
 
-    await this.hideCaptchaPopup(page);
+    try {
+      await this.hideCaptchaPopup(page);
+    } catch {
+      // Page/browser may already be closed (user closed the window) — ignore.
+    }
 
     if (!solved) {
       throw new Error('Captcha still present after manual solution attempt') as CaptchaError;
@@ -316,11 +351,12 @@ export class AvitoScraper {
     await page.waitForTimeout(3000);
 
     try {
-      if (await this.parser.detectCaptcha(page)) {
-        page = await this.resolveCaptcha(page, url);
-      }
+      page = await this.ensureAccessible(page, url);
     } catch (error: any) {
       console.error('[DEBUG] Не удалось проверить капчу:', error.message);
+      // The captcha fallback restarts the browser — the old page handle is
+      // dead. Re-acquire the current page before touching the DOM.
+      page = await this.browser.getPage();
     }
 
     return page.evaluate(() => {
@@ -358,6 +394,63 @@ export class AvitoScraper {
         };
       });
 
+      // JSON-LD blocks (Avito embeds Product/Offer schema — most stable source).
+      const ldJson = Array.from(
+        document.querySelectorAll('script[type="application/ld+json"]')
+      ).map((s) => (s.textContent || '').slice(0, 8000));
+
+      // Elements that mention the ruble sign — price candidates.
+      const priceEls = Array.from(document.querySelectorAll('*'))
+        .filter((el) => el.children.length === 0 && /₽|\d[\s\u00a0]\d{3}/.test(el.textContent || ''))
+        .slice(0, 10)
+        .map((el) => ({
+          tag: el.tagName,
+          cls: el.className?.toString().slice(0, 120),
+          marker: el.closest('[data-marker]')?.getAttribute('data-marker'),
+          itemprop: el.getAttribute('itemprop') || el.closest('[itemprop]')?.getAttribute('itemprop'),
+          text: (el.textContent || '').trim().slice(0, 60),
+          html: el.outerHTML.slice(0, 400),
+        }));
+
+      // Description-like blocks.
+      const descEls = Array.from(
+        document.querySelectorAll('[data-marker*="description"], [class*="description" i], [itemprop="description"]')
+      )
+        .slice(0, 5)
+        .map((el) => ({
+          tag: el.tagName,
+          cls: el.className?.toString().slice(0, 120),
+          marker: el.getAttribute('data-marker'),
+          itemprop: el.getAttribute('itemprop'),
+          textLen: (el.textContent || '').trim().length,
+          html: el.outerHTML.slice(0, 600),
+        }));
+
+      // Location-like blocks.
+      const locEls = Array.from(
+        document.querySelectorAll('[data-marker*="address"], [data-marker*="location"], [itemprop="address"], [class*="geo" i], [class*="address" i]')
+      )
+        .slice(0, 8)
+        .map((el) => ({
+          tag: el.tagName,
+          cls: el.className?.toString().slice(0, 120),
+          marker: el.getAttribute('data-marker'),
+          itemprop: el.getAttribute('itemprop'),
+          text: (el.textContent || '').trim().slice(0, 100),
+          html: el.outerHTML.slice(0, 400),
+        }));
+
+      // Title block + item params.
+      const titleHtml = document.querySelector('[data-marker="item-view/title-info"]')?.outerHTML.slice(0, 500) || null;
+      const paramsHtml = document.querySelector('[data-marker="item-view/item-params"]')?.outerHTML.slice(0, 2000) || null;
+      const sellerHtml = document.querySelector('[data-marker="seller-info/label"], [data-marker="seller-info/name"]')?.outerHTML.slice(0, 600) || null;
+
+      // First few images on the page.
+      const imgEls = Array.from(document.querySelectorAll('img'))
+        .map((img) => ({ src: img.getAttribute('src') || '', alt: img.alt?.slice(0, 60) || '' }))
+        .filter((i) => i.src && !i.src.startsWith('data:'))
+        .slice(0, 8);
+
       return {
         finalUrl: window.location.href,
         title: document.title,
@@ -367,6 +460,14 @@ export class AvitoScraper {
         geoEls: geoEls.slice(0, 5),
         dateEls: dateEls.slice(0, 8),
         mappedEls: mappedEls.slice(0, 25),
+        ldJson,
+        priceEls,
+        descEls,
+        locEls,
+        titleHtml,
+        paramsHtml,
+        sellerHtml,
+        imgEls,
         bodyHead: (document.body?.innerText || '').slice(0, 300),
       };
     });
@@ -393,10 +494,8 @@ export class AvitoScraper {
         await randomSleep(this.options.delayMs[0], this.options.delayMs[1]);
       }
 
-      // Check for captcha (with manual fallback if headless)
-      if (await this.parser.detectCaptcha(page)) {
-        page = await this.resolveCaptcha(page, url);
-      }
+      // Captcha / IP-ban firewall — popup solve if needed
+      page = await this.ensureAccessible(page, url);
 
       // Parse details
       const details = await this.parser.parseItemDetails(page);

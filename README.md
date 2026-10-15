@@ -14,6 +14,8 @@
 - Anti-detection (user-agent, случайные задержки)
 - Stealth режим браузера
 - Ручное решение капчи (в видимом режиме)
+- Персистентный профиль браузера — куки живут между запусками, решённая капча не пропадает (v1.1.0)
+- Юнит-тесты парсера на fixture-страницах (`npm test`) (v1.1.0)
 
 ✅ **Прокси (реализовано):**
 - Поддержка HTTP/HTTPS/SOCKS4/SOCKS5 ✅
@@ -89,6 +91,32 @@ pnpm dev details "https://www.avito.ru/item/12345678" --output item.json
 
 ```bash
 pnpm dev search-all "Samsung SSD" --output all-results.json --price-max 15000
+```
+
+**Персистентный профиль браузера (v1.1.0):**
+
+По умолчанию браузер запускается с постоянным профилем `~/.avito-scraper/profile`:
+куки и localStorage сохраняются между запусками, так что однажды решённая капча
+и «прогретая» сессия не выбрасываются. User-agent фиксируется в профиле
+(`<профиль>/user-agent.txt`), чтобы фингерпринт был стабильным.
+
+```bash
+# Свой каталог профиля
+pnpm dev search "Samsung SSD" --profile /tmp/avito-profile
+
+# Старое поведение — чистый контекст на каждый запуск
+pnpm dev search "Samsung SSD" --no-profile
+
+# Сбросить профиль (если сессия «испортилась»)
+rm -rf ~/.avito-scraper/profile
+```
+
+**Диагностика разметки (v1.1.0):**
+
+```bash
+# Слепок DOM: data-marker'ы, JSON-LD, кандидаты цены/описания/локации.
+# Помогает обновить селекторы в parser.ts после изменения разметки Avito.
+pnpm dev debug-dom "https://www.avito.ru/rossiya?q=iphone+13" > dom.json
 ```
 
 ### Программный API
@@ -235,6 +263,7 @@ avito-scraper/
   captchaTimeoutMs?: number;  // Сколько ждать ручного решения капчи (default: 120000ms)
   captchaPollMs?: number;     // Как часто проверять решена ли капча (default: 3000ms)
   manualCaptchaFallback?: boolean; // При капче в headless — перезапустить браузер в видимом режиме (default: true)
+  userDataDir?: string | null;     // Каталог персистентного профиля (default: $AVITO_PROFILE_DIR или ~/.avito-scraper/profile; null — отключить)
 }
 ```
 
@@ -263,6 +292,8 @@ Scraper использует несколько техник для обхода
 - ✅ Ротация прокси (3 стратегии)
 - ✅ Ручное решение captcha (в non-headless режиме: попап в окне браузера + автопроверка)
 - ✅ Автопереход в видимый режим при капче в headless (manualCaptchaFallback)
+- ✅ Персистентный профиль: решённая капча и куки живут между запусками (v1.1.0)
+- ✅ Парсер подробностей на JSON-LD: цена/описание/картинки берутся из schema.org, DOM-селекторы — фолбэк (v1.1.0)
 - 🚧 Решение captcha автоматическое (в планах)
 
 ## Roadmap
@@ -274,6 +305,10 @@ Scraper использует несколько техник для обхода
 - [x] MCP tools: avito_search, avito_get_details, avito_search_all
 - [x] Конфигурация для Claude Desktop
 - [x] Интеграция с opencode (проектный opencode.json)
+- [x] Персистентный профиль браузера + стабильный user-agent
+- [x] Парсер details на JSON-LD с DOM/мета-фолбэками (после изменения разметки Avito)
+- [x] Тесты парсера (node --test + playwright на fixture-страницах)
+- [x] CLI команда debug-dom для диагностики разметки
 
 **Будущие версии:**
 - [ ] Anti-captcha.com API интеграция
@@ -285,6 +320,8 @@ Scraper использует несколько техник для обхода
 
 **Ошибка "Captcha detected":**
 - В headless режиме при включённом `manualCaptchaFallback` (по умолчанию) браузер автоматически перезапустится в видимом окне — решите капчу там
+- Благодаря персистентному профилю решённая капча запоминается — следующий запуск обычно проходит уже без капчи
+- Если сессия «испортилась» и капча лезет постоянно — сбросьте профиль: `rm -rf ~/.avito-scraper/profile`
 - Запустите CLI с `--headless false` — в окне браузера появится попап с просьбой решить капчу вручную
 - Уменьшите частоту запросов
 - Используйте прокси

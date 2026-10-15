@@ -86,6 +86,13 @@ export interface ScraperOptions {
   captchaTimeoutMs?: number; // how long to wait for manual captcha solution (headed mode)
   captchaPollMs?: number; // how often to re-check whether captcha is solved
   manualCaptchaFallback?: boolean; // restart browser in headed mode so the user can solve the captcha
+  /**
+   * Persistent browser profile directory (cookies, localStorage survive across
+   * runs, so a solved captcha is not lost). `null` disables persistence
+   * (fresh incognito context every run, the old behavior).
+   * Default: $AVITO_PROFILE_DIR or ~/.avito-scraper/profile
+   */
+  userDataDir?: string | null;
 }
 
 // ==================== Captcha ====================
