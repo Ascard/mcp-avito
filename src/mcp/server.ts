@@ -31,7 +31,7 @@ async function getScraper(): Promise<AvitoScraper> {
   // If the browser process died (e.g. crash or was killed), reset to headless
   // and re-initialize so subsequent calls get a fresh browser.
   if (!scraper.isInitialized()) {
-    scraper.setHeadless(true);
+    if (!process.env.AVITO_CDP_URL) scraper.setHeadless(true);
     await scraper.initialize();
   }
 
@@ -296,7 +296,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           text: JSON.stringify({
             success: false,
             error: error.message,
-            stack: error.stack,
+            code: error.code || (process.env.AVITO_CDP_URL && /connect|closed|disconnect/i.test(error.message) ? 'CDP_CONNECTION_LOST' : 'PAGE_LOAD_FAILED'),
           }),
         },
       ],

@@ -8,13 +8,13 @@ import { AvitoParser } from './parser.js';
 import { ProxyManager } from './proxy-manager.js';
 import { buildSearchUrl } from '../utils/url-builder.js';
 import { randomSleep } from '../utils/delays.js';
-import type {
-  SearchFilters,
-  SearchResult,
-  ItemDetails,
-  ScraperOptions,
+import {
   ScraperError,
   CaptchaError,
+  type SearchFilters,
+  type SearchResult,
+  type ItemDetails,
+  type ScraperOptions,
 } from './types.js';
 
 export class AvitoScraper {
@@ -107,41 +107,32 @@ export class AvitoScraper {
         await randomSleep(this.options.delayMs[0], this.options.delayMs[1]);
       }
 
-      // Check for captcha (with error handling).
-      // If captcha is detected in headless mode and manualCaptchaFallback is
-      // enabled, restart the browser in headed mode so the user can solve it.
-      try {
-        if (await this.parser.detectCaptcha(page)) {
-          page = await this.resolveCaptcha(page, url);
-        }
-      } catch (error: any) {
-        if (error.message?.includes('Captcha')) {
-          throw error;
-        }
-        console.error('Предупреждение: не удалось проверить капчу:', error.message);
+      if (await this.parser.isBlocked(page)) {
+        throw new ScraperError('Avito access restricted; check the visible MCP tab and retry after access is restored', 'ACCESS_BLOCKED');
       }
-
-      // Check if blocked
-      try {
-        if (await this.parser.isBlocked(page)) {
-          throw new Error('Access blocked') as ScraperError;
-        }
-      } catch (error: any) {
-        if (error.message?.includes('Access blocked')) {
-          throw error;
-        }
-        console.error('Предупреждение: не удалось проверить блокировку:', error.message);
+      if (await this.parser.detectCaptcha(page)) {
+        page = await this.resolveCaptcha(page, url);
       }
 
       // Wait for results
       const hasResults = await this.parser.waitForResults(page);
       if (!hasResults) {
-        console.error('Результаты не найдены или страница не загрузилась');
-        return [];
+        if (await this.parser.isBlocked(page)) {
+          throw new ScraperError('Avito access restricted', 'ACCESS_BLOCKED');
+        }
+        if (await this.parser.detectCaptcha(page)) {
+          throw new CaptchaError('Verification still required; complete it in the visible MCP tab, then retry');
+        }
+        const noMatches = await page.evaluate(() => /ничего не найдено|объявления не найдены|нет объявлений/i.test(document.body?.innerText || ''));
+        if (noMatches) return [];
+        throw new ScraperError('Search results did not appear; page timed out or expected DOM elements are missing', 'RESULTS_MISSING');
       }
 
       // Parse results
       const results = await this.parser.parseSearchResults(page);
+      if (!results.length) {
+        throw new ScraperError('Search item elements exist but none could be parsed', 'PARSING_FAILED');
+      }
       console.error(`Найдено ${results.length} объявлений`);
 
       return results;
@@ -160,6 +151,9 @@ export class AvitoScraper {
    * @throws CaptchaError if the captcha is not solved in time or fallback is off.
    */
   private async resolveCaptcha(page: Page, url: string): Promise<Page> {
+    if (process.env.AVITO_CDP_URL) {
+      return this.waitForCaptchaResolution(page);
+    }
     // Headless without fallback: we can't show the browser window, fail fast.
     if (this.options.headless && !this.options.manualCaptchaFallback) {
       throw new Error('Captcha detected') as CaptchaError;
@@ -192,7 +186,7 @@ export class AvitoScraper {
    * or until the timeout expires.
    */
   private async waitForCaptchaResolution(page: Page): Promise<Page> {
-    const captchaTimeout = this.options.captchaTimeoutMs || 120000;
+    const captchaTimeout = process.env.AVITO_CDP_URL ? 25000 : (this.options.captchaTimeoutMs || 120000);
     const pollMs = this.options.captchaPollMs || 3000;
 
     console.error('\n⚠️  Обнаружена капча! Пожалуйста, решите её в окне браузера.');
@@ -210,10 +204,12 @@ export class AvitoScraper {
       await page.waitForTimeout(pollMs);
     }
 
-    await this.hideCaptchaPopup(page);
+    if (!page.isClosed()) {
+      try { await this.hideCaptchaPopup(page); } catch { /* navigation or disconnection */ }
+    }
 
     if (!solved) {
-      throw new Error('Captcha still present after manual solution attempt') as CaptchaError;
+      throw new CaptchaError('CAPTCHA detected; finish verification in the visible MCP tab, then retry the tool (browser session is preserved)');
     }
     console.error('✓ Капча решена, продолжаем...\n');
 
@@ -394,12 +390,21 @@ export class AvitoScraper {
       }
 
       // Check for captcha (with manual fallback if headless)
+      if (await this.parser.isBlocked(page)) {
+        throw new ScraperError('Avito access restricted', 'ACCESS_BLOCKED');
+      }
       if (await this.parser.detectCaptcha(page)) {
         page = await this.resolveCaptcha(page, url);
+      }
+      if (await this.parser.isBlocked(page)) {
+        throw new ScraperError('Avito access restricted', 'ACCESS_BLOCKED');
       }
 
       // Parse details
       const details = await this.parser.parseItemDetails(page);
+      if (!details.title) {
+        throw new ScraperError('Expected item title is missing from the page', 'PARSING_FAILED');
+      }
 
       return details;
     }
