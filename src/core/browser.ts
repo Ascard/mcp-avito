@@ -3,6 +3,7 @@
  */
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { readFileSync } from 'node:fs';
 import ProxyChain from 'proxy-chain';
 import { getRandomUserAgent } from '../utils/user-agents.js';
 import type { ProxyConfig, ScraperOptions } from './types.js';
@@ -13,6 +14,8 @@ export class BrowserManager {
   private page: Page | null = null;
   private options: ScraperOptions;
   private proxyServer: any = null;
+  private readonly cdpUrl = process.env.AVITO_CDP_URL;
+  private externalBrowser = false;
 
   constructor(options: ScraperOptions = {}) {
     this.options = {
@@ -23,6 +26,25 @@ export class BrowserManager {
   }
 
   async initialize(proxy?: ProxyConfig): Promise<void> {
+    if (this.cdpUrl) {
+      if (proxy) {
+        throw new Error('CDP mode uses the external browser network settings; proxy configuration is unsupported');
+      }
+      try {
+        const tokenFile = process.env.AVITO_CDP_TOKEN_FILE;
+        const headers = tokenFile ? { Authorization: `Bearer ${readFileSync(tokenFile, 'utf8').trim()}` } : undefined;
+        this.browser = await chromium.connectOverCDP(this.cdpUrl, { headers });
+        this.context = this.browser.contexts()[0];
+        if (!this.context) {
+          throw new Error('No default browser context available over CDP');
+        }
+        this.externalBrowser = true;
+        return;
+      } catch (error) {
+        await this.close();
+        throw error;
+      }
+    }
     const launchOptions: any = {
       headless: this.options.headless,
       args: [
@@ -108,6 +130,7 @@ export class BrowserManager {
     }
 
     this.browser = await chromium.launch(launchOptions);
+    this.externalBrowser = false;
 
     // Create context with stealth settings
     this.context = await this.browser.newContext({
@@ -173,43 +196,30 @@ export class BrowserManager {
    * Fully shut down the current browser (if any) and start a fresh one.
    */
   private async restartBrowser(): Promise<void> {
-    this.page = null;
-    if (this.context) {
-      try {
-        await this.context.close();
-      } catch {
-        // ignore — already dead
-      }
-      this.context = null;
-    }
-    if (this.browser) {
-      try {
-        await this.browser.close();
-      } catch {
-        // ignore — already dead
-      }
-      this.browser = null;
-    }
-    if (this.proxyServer) {
-      try {
-        await this.proxyServer.close(true);
-      } catch {
-        // ignore
-      }
-      this.proxyServer = null;
-    }
+    await this.close();
     await this.initialize();
   }
 
   async close(): Promise<void> {
+    const page = this.page;
+    const context = this.context;
+    const browser = this.browser;
+    const external = this.externalBrowser;
     this.page = null;
-    if (this.context) {
-      await this.context.close();
-      this.context = null;
+    this.context = null;
+    this.browser = null;
+    this.externalBrowser = false;
+    // A CDP context belongs to Chrome, not to us. Only our own tab may be closed.
+    if (page && !page.isClosed()) {
+      try { await page.close(); } catch { /* connection already lost */ }
     }
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
+    if (context && !external) {
+      try { await context.close(); } catch { /* already closed */ }
+    }
+    // On a connectOverCDP Browser, close() detaches this Playwright client;
+    // on a launched Browser it shuts down the owned Chromium process.
+    if (browser) {
+      try { await browser.close(); } catch { /* already disconnected */ }
     }
     if (this.proxyServer) {
       console.error('Закрываем локальный прокси-сервер...');

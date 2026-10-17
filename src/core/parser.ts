@@ -97,7 +97,8 @@ export class AvitoParser {
       // Price
       const priceEl = document.querySelector('[itemprop="price"]');
       const priceAttr = priceEl?.getAttribute('content');
-      const price = priceAttr ? parseInt(priceAttr, 10) : 0;
+      const visiblePrice = document.querySelector('[data-marker="item-view/item-price"]')?.textContent || '';
+      const price = priceAttr ? parseInt(priceAttr, 10) : (parseInt(visiblePrice.replace(/\D/g, ''), 10) || 0);
 
       // Description
       const descEl = document.querySelector('[itemprop="description"]');
@@ -170,13 +171,7 @@ export class AvitoParser {
 
     // Check page title
     const title = await page.title();
-    if (title.toLowerCase().includes('captcha')) {
-      return true;
-    }
-
-    // Avito firewall page: "Доступ ограничен: проблема с IP" + captcha
-    const bodyText = (await page.evaluate(() => document.body?.innerText || '')) || '';
-    if (bodyText.includes('Доступ ограничен') || bodyText.includes('проблема с IP')) {
+    if (title.toLowerCase().includes('captcha') || title.toLowerCase().includes('проверка безопасности')) {
       return true;
     }
 
@@ -202,7 +197,8 @@ export class AvitoParser {
 
     // Avito firewall: "Доступ ограничен: проблема с IP"
     const bodyText = (await page.evaluate(() => document.body?.innerText || '')) || '';
-    if (bodyText.includes('Доступ ограничен') || bodyText.includes('проблема с IP')) {
+    if (bodyText.includes('проблема с IP') ||
+        (bodyText.includes('Доступ ограничен') && !bodyText.includes('проверка безопасности'))) {
       return true;
     }
 

@@ -14,7 +14,7 @@
     "start": "node dist/cli.js",
     "mcp": "node dist/mcp/server.js",
     "mcp:dev": "tsx src/mcp/server.ts",
-    "test": "echo \"Tests coming soon\" && exit 0",
+    "test": "node --test tests/*.test.mjs",
     "postinstall": "playwright install chromium"
   },
   "keywords": [
