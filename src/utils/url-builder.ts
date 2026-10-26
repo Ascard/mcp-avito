@@ -6,11 +6,23 @@ import type { SearchFilters } from '../core/types.js';
 
 const AVITO_BASE_URL = 'https://www.avito.ru';
 
-export function buildSearchUrl(filters: SearchFilters): string {
-  const { query, priceMin, priceMax, locationId, page, sort } = filters;
+export function normalizeLocationSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^\/+|\/+$/g, '')
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+}
 
-  // Base search URL
-  let url = `${AVITO_BASE_URL}/rossiya`;
+export function buildSearchUrl(filters: SearchFilters): string {
+  const { query, priceMin, priceMax, locationSlug, radiusKm, latitude, longitude, localOnly, page, sort } = filters;
+
+  // Avito scopes a search by the location path (for example /moskva).
+  // Numeric location IDs alone do not change the path.
+  const searchLocation = locationSlug ? normalizeLocationSlug(locationSlug) : 'rossiya';
+  const url = `${AVITO_BASE_URL}/${searchLocation || 'rossiya'}`;
 
   // Add query parameter
   const params = new URLSearchParams();
@@ -26,8 +38,19 @@ export function buildSearchUrl(filters: SearchFilters): string {
     params.set('pmax', priceMax.toString());
   }
 
-  // Location (if specified)
-  // Note: locationId might need different handling based on Avito's URL structure
+  // Avito's location toggle is encoded as localPriority: 0 = normal mixed
+  // results, 1 = stay inside/prioritize the selected geography. Radius search
+  // adds geoCoords + radius/searchRadius around the selected location.
+  if (radiusKm !== undefined) {
+    if (latitude !== undefined && longitude !== undefined) {
+      params.set('geoCoords', latitude.toString() + ',' + longitude.toString());
+    }
+    params.set('localPriority', localOnly ? '1' : '0');
+    params.set('radius', radiusKm.toString());
+    params.set('searchRadius', radiusKm.toString());
+  } else if (localOnly !== undefined) {
+    params.set('localPriority', localOnly ? '1' : '0');
+  }
 
   // Pagination
   if (page && page > 1) {

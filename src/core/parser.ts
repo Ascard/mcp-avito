@@ -10,14 +10,28 @@ export class AvitoParser {
   /**
    * Parse search results from page
    */
-  async parseSearchResults(page: Page): Promise<SearchResult[]> {
-    const results = await page.evaluate(() => {
+  async parseSearchResults(page: Page, localOnly: boolean = false): Promise<SearchResult[]> {
+    const results = await page.evaluate((onlyLocal) => {
       // @ts-ignore - runs in browser context
       const items: any[] = [];
 
-      // Avito uses data-marker attribute for items
-      // Selectors may need adjustment based on actual HTML structure
-      const itemElements = document.querySelectorAll('[data-marker="item"]');
+      // Avito keeps remote/delivery listings on the same page even when the
+      // "Сначала из <location>" switch is enabled. The local block ends at a
+      // separator such as "1 904 объявления есть в других городах".
+      let itemElements = Array.from(document.querySelectorAll('[data-marker="item"]'));
+      if (onlyLocal) {
+        const divider = Array.from(document.querySelectorAll('h2')).find((element) =>
+          /объявлен(?:ие|ия|ий)\s+есть\s+в\s+других\s+городах/iu.test(
+            (element.textContent || '').replace(/\s+/g, ' ').trim()
+          )
+        );
+
+        if (divider) {
+          itemElements = itemElements.filter((element) =>
+            Boolean(element.compareDocumentPosition(divider) & Node.DOCUMENT_POSITION_FOLLOWING)
+          );
+        }
+      }
 
       itemElements.forEach((element) => {
         try {
@@ -75,7 +89,7 @@ export class AvitoParser {
       });
 
       return items;
-    });
+    }, localOnly);
 
     // Normalize URLs
     return results.map((item) => ({

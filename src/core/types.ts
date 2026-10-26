@@ -9,6 +9,11 @@ export interface SearchFilters {
   priceMin?: number;
   priceMax?: number;
   locationId?: number;
+  locationSlug?: string;
+  radiusKm?: number;
+  latitude?: number;
+  longitude?: number;
+  localOnly?: boolean;
   categoryId?: number;
   page?: number;
   sort?: 'date' | 'price_asc' | 'price_desc' | 'default';

@@ -99,7 +99,8 @@ export class AvitoScraper {
       // Content readiness is handled by waitForResults() below.
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-      // Wait for page to stabilize
+      // Wait for page to stabilize. Avito may redirect a text query to a
+      // canonical category URL and drop radius/localPriority in the process.
       await page.waitForTimeout(3000);
 
       // Add random delay (anti-bot)
@@ -133,6 +134,16 @@ export class AvitoScraper {
         console.error('Предупреждение: не удалось проверить блокировку:', error.message);
       }
 
+      // Restore radius/localPriority after any Avito canonical redirect, then
+      // check access once more because this step may perform one navigation.
+      page = await this.applyLocationUiState(page, filters);
+      if (await this.parser.detectCaptcha(page)) {
+        page = await this.resolveCaptcha(page, page.url());
+      }
+      if (await this.parser.isBlocked(page)) {
+        throw new Error('Access blocked') as ScraperError;
+      }
+
       // Wait for results
       const hasResults = await this.parser.waitForResults(page);
       if (!hasResults) {
@@ -141,11 +152,70 @@ export class AvitoScraper {
       }
 
       // Parse results
-      const results = await this.parser.parseSearchResults(page);
+      const results = await this.parser.parseSearchResults(page, filters.localOnly === true);
       console.error(`Найдено ${results.length} объявлений`);
 
       return results;
     }
+  }
+
+  /**
+   * Re-apply location UI state after Avito redirects a free-text query to a
+   * canonical category page. Those redirects can drop radius/localPriority.
+   * Radius is restored in the URL first, then the real "Сначала из ..."
+   * switch is synchronized through its stable data-marker.
+   */
+  private async applyLocationUiState(page: Page, filters: SearchFilters): Promise<Page> {
+    if (filters.radiusKm !== undefined) {
+      const current = new URL(page.url());
+      const radius = filters.radiusKm.toString();
+      const coords =
+        filters.latitude !== undefined && filters.longitude !== undefined
+          ? filters.latitude.toString() + ',' + filters.longitude.toString()
+          : undefined;
+
+      const radiusMissing =
+        current.searchParams.get('radius') !== radius ||
+        current.searchParams.get('searchRadius') !== radius ||
+        (coords !== undefined && current.searchParams.get('geoCoords') !== coords);
+
+      if (radiusMissing) {
+        if (coords !== undefined) {
+          current.searchParams.set('geoCoords', coords);
+        }
+        current.searchParams.set('radius', radius);
+        current.searchParams.set('searchRadius', radius);
+        await page.goto(current.toString(), { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(1500);
+      }
+    }
+
+    if (filters.localOnly !== undefined) {
+      const switchSelector = '[data-marker="filters/localPriority/localPriority"]';
+      const switcher = page.locator(switchSelector).first();
+      const switchCount = await switcher.count();
+
+      if (switchCount > 0) {
+        const expected = filters.localOnly ? 'true' : 'false';
+        const actual = await switcher.getAttribute('aria-checked');
+        if (actual !== expected) {
+          await switcher.click();
+          for (let attempt = 0; attempt < 20; attempt++) {
+            if ((await switcher.getAttribute('aria-checked')) === expected) break;
+            await page.waitForTimeout(100);
+          }
+          await page.waitForTimeout(1200);
+        }
+      } else {
+        // Fallback for layouts that do not render the switch control.
+        const current = new URL(page.url());
+        current.searchParams.set('localPriority', filters.localOnly ? '1' : '0');
+        await page.goto(current.toString(), { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await page.waitForTimeout(1200);
+      }
+    }
+
+    return page;
   }
 
   /**
